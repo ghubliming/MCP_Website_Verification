@@ -31,6 +31,26 @@ To run the test suite:
 npm test
 ```
 
+## Usage with MCP Clients
+
+To use this tool with an MCP-compatible client like [Dive](https://github.com/OpenAgentPlatform/Dive), you can register it as a local server. Add the following configuration to your client, replacing `<path-to-your-project>` with the absolute path to this project's directory on your machine.
+
+```json
+{
+  "mcpServers": {
+    "website-verifier": {
+      "transport": "stdio",
+      "enabled": true,
+      "command": "node",
+      "args": [
+        "<path-to-your-project>/dist/index.cjs"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
 ## License
 
 MIT
