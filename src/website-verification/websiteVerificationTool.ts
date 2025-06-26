@@ -25,6 +25,12 @@ export class WebsiteVerificationTool extends Tool<WebsiteVerificationInput, Webs
   name = 'Website Verifier';
   description = 'Verifies a list of URLs to check for accessibility, timeouts, or other errors.';
   
+  private isIncompleteUrl(url: string): boolean {
+    // Check if URL is missing protocol (http:// or https://)
+    return !url.startsWith('http://') && !url.startsWith('https://') && 
+           (url.includes('.') || url.startsWith('www.'));
+  }
+  
   // @ts-ignore
   async _call(input: WebsiteVerificationInput): Promise<WebsiteVerificationOutput> {
     let urlsToVerify: string[] = [];
@@ -45,8 +51,21 @@ export class WebsiteVerificationTool extends Tool<WebsiteVerificationInput, Webs
       };
     }
 
-    const verificationPromises = urlsToVerify.map(url => verifyUrl(url));
-    const results = await Promise.all(verificationPromises);
+    // Check for incomplete URLs and handle them separately
+    const results: VerificationResult[] = [];
+    
+    for (const url of urlsToVerify) {
+      if (this.isIncompleteUrl(url)) {
+        results.push({
+          url,
+          status: 'NOT_ACCESSIBLE',
+          reason: 'Incomplete URL - missing protocol (http:// or https://)',
+        });
+      } else {
+        const verificationResult = await verifyUrl(url);
+        results.push(verificationResult);
+      }
+    }
 
     const problematicResults = results.filter(r => r.status !== 'ACCESSIBLE');
 

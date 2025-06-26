@@ -29,6 +29,52 @@ const TEXT_TEST_CASES = [
     'Only one link here: https://www.bing.com'
 ];
 
+const INCOMPLETE_URL_TEST_CASES = [
+    'www.google.com',
+    'www.bing.com', 
+    'example.com',
+    'github.com',
+    'subdomain.example.com'
+];
+
+// Helper function to check if URL is incomplete (missing protocol)
+function isIncompleteUrl(url: string): boolean {
+  return !url.startsWith('http://') && !url.startsWith('https://') && 
+         (url.includes('.') || url.startsWith('www.'));
+}
+
+// Simulate the website verification tool logic for testing
+async function testWebsiteVerification(urls: string[]) {
+  const results = [];
+  
+  for (const url of urls) {
+    if (isIncompleteUrl(url)) {
+      results.push({
+        url,
+        status: 'NOT_ACCESSIBLE',
+        reason: 'Incomplete URL - missing protocol (http:// or https://)',
+      });
+    } else {
+      const verificationResult = await verifyUrl(url);
+      results.push({
+        url: verificationResult.url,
+        status: verificationResult.status,
+        reason: verificationResult.reason,
+      });
+    }
+  }
+
+  const problematicResults = results.filter(r => r.status !== 'ACCESSIBLE');
+
+  return {
+    total_links: results.length,
+    accessible: results.length - problematicResults.length,
+    problematic: problematicResults.length,
+    issues: problematicResults,
+    recommendation: problematicResults.length > 0 ? 'UPDATE_RESPONSE' : 'LOOKS_GOOD',
+  };
+}
+
 
 async function runBrutalTest() {
   log('--- Starting Brutal, Direct Test Run ---');
@@ -59,6 +105,31 @@ async function runBrutalTest() {
     }
   }
 
+  // 3. Test Incomplete URL Detection
+  log('\\n--- Testing Incomplete URL Detection ---');
+  
+  for (const incompleteUrl of INCOMPLETE_URL_TEST_CASES) {
+    log(`Testing incomplete URL: ${incompleteUrl}`);
+    try {
+      const result = await testWebsiteVerification([incompleteUrl]);
+      log(`Result: ${JSON.stringify(result)}`);
+      
+      // Verify that it was detected as problematic with the right reason
+      if (result.problematic !== 1) {
+        log('--> TEST FAILED: Incomplete URL should be detected as problematic.');
+        allTestsPassed = false;
+      } else if (!result.issues[0].reason.includes('missing protocol')) {
+        log('--> TEST FAILED: Incomplete URL should have "missing protocol" in the reason.');
+        allTestsPassed = false;
+      } else {
+        log('--> TEST PASSED: Incomplete URL correctly detected.');
+      }
+    } catch (e: any) {
+      log(`--> TEST FAILED WITH ERROR: ${e.message}`);
+      allTestsPassed = false;
+    }
+  }
+
   log('\\n--- Test Run Summary ---');
   if (allTestsPassed) {
     log('All core functions appear to be working correctly.');
@@ -71,5 +142,7 @@ async function runBrutalTest() {
     process.exit(1);
   }
 }
+
+runBrutalTest();
 
 runBrutalTest(); 
