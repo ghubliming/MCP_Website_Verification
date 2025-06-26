@@ -1,71 +1,88 @@
 #!/usr/bin/env node
 
-import { Server } from "@modelcontextprotocol/sdk/dist/esm/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/dist/esm/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, CallToolRequest } from "@modelcontextprotocol/sdk/dist/esm/shared/protocol.js";
-import { WebsiteVerificationTool } from "./website-verification/websiteVerificationTool.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import { extractUrls } from "./website-verification/urlExtractor.js";
+import { verifyUrl } from "./website-verification/urlVerifier.js";
 
-const webTool = new WebsiteVerificationTool();
-// @ts-ignore - The 'definition' property is inherited from the base Tool class.
-const tools = [webTool.definition];
-
-const server = new Server(
+const server = new McpServer(
   {
     name: "mcp-server/website-verifier",
     version: "0.1.0",
   },
   {
     capabilities: {
-      description: "An MCP server for verifying website link accessibility.",
-      tools: {
-        // @ts-ignore - The 'id' and 'definition' properties are inherited.
-        [webTool.id]: webTool.definition,
-      },
+      tools: {},
     },
   }
 );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools,
-}));
+// Register the website verification tool
+server.tool(
+  'website-verifier',
+  'Verifies a list of URLs to check for accessibility, timeouts, or other errors.',
+  {
+    text: z.string().optional().describe('Text containing URLs to extract and verify'),
+    urls: z.array(z.string()).optional().describe('Array of URLs to verify directly'),
+  },
+  async ({ text, urls }) => {
+    let urlsToVerify: string[] = [];
 
-server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
-  try {
-    const { name, arguments: args } = request.params;
-
-    // @ts-ignore - The 'id' property is inherited from the base Tool class.
-    if (name !== webTool.id) {
-      throw new Error(`Tool ${name} not found.`);
+    if (urls) {
+      urlsToVerify = urls;
+    } else if (text) {
+      urlsToVerify = extractUrls(text);
     }
 
-    if (!args) {
-      throw new Error("No parameters provided");
+    if (urlsToVerify.length === 0) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              total_links: 0,
+              accessible: 0,
+              problematic: 0,
+              issues: [],
+              recommendation: 'LOOKS_GOOD',
+            }, null, 2),
+          },
+        ],
+      };
     }
-    
-    // @ts-ignore - The 'call' method is inherited from the base Tool class.
-    const result = await webTool.call(args);
+
+    const verificationPromises = urlsToVerify.map(url => verifyUrl(url));
+    const results = await Promise.all(verificationPromises);
+
+    const problematicResults = results.filter(r => r.status !== 'ACCESSIBLE');
+
+    const report = {
+      total_links: results.length,
+      accessible: results.length - problematicResults.length,
+      problematic: problematicResults.length,
+      issues: problematicResults.map(r => ({
+        url: r.url,
+        status: r.status,
+        reason: r.reason,
+      })),
+      recommendation: problematicResults.length > 0 ? 'UPDATE_RESPONSE' : 'LOOKS_GOOD',
+    };
 
     return {
       content: [
         {
           type: "text",
-          text: JSON.stringify(result, null, 2),
+          text: JSON.stringify(report, null, 2),
         },
       ],
-      isError: false,
-    };
-
-  } catch (error: any) {
-    return {
-      content: [{ type: "text", text: error.message || "An unexpected error occurred." }],
-      isError: true,
     };
   }
-});
+);
 
 async function runServer() {
   const transport = new StdioServerTransport();
-  await server.listen(transport);
+  await server.connect(transport);
 }
 
 runServer().catch(err => {

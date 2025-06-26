@@ -9,11 +9,12 @@
     "test": "tsx src/tests/run-verification-test.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.5.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
     "dotenv": "^16.4.1",
     "esbuild": "^0.25.0",
     "node-fetch": "^3.3.2",
-    "shx": "0.3.4"
+    "shx": "0.3.4",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.11.16",

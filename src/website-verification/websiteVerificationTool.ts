@@ -1,4 +1,4 @@
-import { Tool, ToolInput, ToolOutput } from '@modelcontextprotocol/sdk/dist/esm/shared/protocol.js';
+import { Tool, ToolInput, ToolOutput } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import { extractUrls } from './urlExtractor.js';
 import { verifyUrl, VerificationResult } from './urlVerifier.js';
 
